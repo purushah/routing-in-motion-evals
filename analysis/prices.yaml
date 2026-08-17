@@ -1,0 +1,30 @@
+# USD per 1M tokens, OpenAI published prices, pinned 2026-08-06.
+# Local Ollama models get a compute-proxy price of 0 (cost measured only on live runs).
+gpt-4o:
+  input: 2.50
+  output: 10.00
+gpt-4o-mini:
+  input: 0.15
+  output: 0.60
+gpt-5.1:
+  input: 1.25
+  output: 10.00
+gpt-5-nano:
+  input: 0.05
+  output: 0.40
+default:
+  input: 0.0
+  output: 0.0
+gpt-5-mini:
+  input: 0.25
+  output: 2.00
+gpt-4.1-nano:
+  input: 0.10
+  output: 0.40
+# Anthropic published prices, pinned 2026-08-08 (Sonnet 5 introductory rate through Aug 31).
+claude-sonnet-5:
+  input: 2.00
+  output: 10.00
+claude-haiku-4-5:
+  input: 1.00
+  output: 5.00
