@@ -25,11 +25,8 @@ import sys
 EVAL = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SUP = os.path.join(EVAL, "supplement")
 
-KEY = ""
-try:
-    KEY = open("/private/tmp/open_ai_key.txt").read().strip()
-except OSError:
-    pass
+# Used only to scrub the key from any archived file, should it ever appear.
+KEY = os.environ.get("OPENAI_API_KEY", "")
 
 
 def guard(path):
