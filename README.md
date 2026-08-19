@@ -19,9 +19,20 @@ bugs the recovery audit found), is `analysis/RESULTS.md`.
 | `workloads/` | Request/answer JSONL for all workloads + deterministic builders (`make_workload.py`, `make_workload_rq1b.py`, both seed 42) |
 | `analysis/` | `parse_eventlog.py`, `grade.py`, `costs.py` + `prices.yaml` (pinned Aug 2026), `recovery_join.py`, `rq5_divergence.py`, `RESULTS.md` |
 | `infra/` | Counting backend (RQ4 invocation ledger), RouteLLM sidecar, LiteLLM configs + observation hooks (RQ5), Kafka compose file |
-| `*.sh` | Exact launchers for every experiment phase (RQ1/1b/2/3/4/5, batch sweeps, seeds, kill/restore and rescaled-restore trials) |
+| `*.sh` | Exact launchers for every experiment phase (RQ1/1b/2/3/4/5, batch sweeps, seeds, kill/restore, rescaled-restore, in-flight-kill, hash-split, and store-write trials) |
 | `figures/` | Figure-generation scripts |
 | **Release asset** | `runs-eventlogs.tar.gz` — raw per-run EventLogs, results.csv, checkpoints metadata for all ~150 runs (482 MB unpacked) |
+
+## Routing-strategy classes in the harness
+
+`JudgeStrategy` (LLM judge), `MlRouterStrategy` (RouteLLM BERT sidecar),
+`LengthPlusKeywordStrategy` (custom heuristic), `NondetStrategy` (weighted coin flip),
+`WeightedStrategy` (general per-candidate weights — the canary/A-B class; two-candidate
+splits are evaluated, multi-way is supported but unexercised), and `HashSplitStrategy`
+(sticky split keyed on request *content* — engine-generated ids regenerate on replay, so
+id-keyed stickiness is not restart-stable without the durable store). The determinism 2×2
+(weighted-random vs. hash split × store vs. no store) is documented in
+`analysis/RESULTS.md`.
 
 ## Reproducing
 

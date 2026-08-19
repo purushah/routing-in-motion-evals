@@ -17,7 +17,14 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 ap = argparse.ArgumentParser()
 ap.add_argument("--port", type=int, default=4001)
 ap.add_argument("--ledger", default="/tmp/invocations.jsonl")
+ap.add_argument("--latency", type=float, default=0.2, help="seconds per call")
 args = ap.parse_args()
+
+
+def ledger(rec):
+    with open(args.ledger, "a") as fh:
+        fh.write(json.dumps(rec) + "\n")
+        fh.flush()
 
 
 class H(BaseHTTPRequestHandler):
@@ -27,13 +34,12 @@ class H(BaseHTTPRequestHandler):
         prompt = user[-1]["content"] if user else ""
         rec = {
             "ts": time.time(),
+            "phase": "recv",
             "model": body.get("model", "?"),
             "prompt_sha1": hashlib.sha1(prompt.encode()).hexdigest(),
         }
-        with open(args.ledger, "a") as fh:
-            fh.write(json.dumps(rec) + "\n")
-            fh.flush()
-        time.sleep(0.2)
+        ledger(rec)
+        time.sleep(args.latency)
         resp = {
             "id": "cnt-" + rec["prompt_sha1"][:12],
             "object": "chat.completion",
@@ -48,11 +54,16 @@ class H(BaseHTTPRequestHandler):
             "usage": {"prompt_tokens": 10, "completion_tokens": 8, "total_tokens": 18},
         }
         out = json.dumps(resp).encode()
-        self.send_response(200)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(out)))
-        self.end_headers()
-        self.wfile.write(out)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+            ledger({**rec, "ts": time.time(), "phase": "resp"})
+        except (BrokenPipeError, ConnectionResetError):
+            # the client (the engine) died while this call was in flight
+            ledger({**rec, "ts": time.time(), "phase": "resp_err"})
 
     def log_message(self, *a):
         pass

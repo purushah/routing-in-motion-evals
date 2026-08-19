@@ -189,6 +189,37 @@ public final class EvalJob {
                                                                         "0")))))
                                 .build());
                 break;
+            case "routed-weighted":
+                agentsEnv.addResource(
+                        EvalAgent.TARGET,
+                        ResourceType.MODEL_ROUTER,
+                        routerBuilder()
+                                .strategy(
+                                        Strategies.of(
+                                                WeightedStrategy.class.getName(),
+                                                Map.of(
+                                                        "weights",
+                                                        Map.of(
+                                                                "small",
+                                                                opt.getOrDefault("w-small", "0.5"),
+                                                                "big",
+                                                                opt.getOrDefault("w-big", "0.5")))))
+                                .build());
+                break;
+            case "routed-hashsplit":
+                agentsEnv.addResource(
+                        EvalAgent.TARGET,
+                        ResourceType.MODEL_ROUTER,
+                        routerBuilder()
+                                .strategy(
+                                        Strategies.of(
+                                                HashSplitStrategy.class.getName(),
+                                                Map.of(
+                                                        "escalate_percent",
+                                                        opt.getOrDefault(
+                                                                "escalate-percent", "50"))))
+                                .build());
+                break;
             case "routed-nondet":
                 agentsEnv.addResource(
                         EvalAgent.TARGET,

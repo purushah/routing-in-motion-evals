@@ -258,3 +258,67 @@ Replayed 39/8/62 = 109 decisions; 109/109 same model AND byte-identical decision
 Paper envelope updated: same-OR-different parallelism single-process restores certified;
 multi-node remains outside. Script: rq4_rescale_trial.sh. Kafka via Rancher Desktop
 (open -a "Rancher Desktop"; docker compose -f infra/docker-compose.yml up -d kafka).
+
+## RQ4 IN-FLIGHT-kill trials (2026-08-17) — the at-least-once boundary, exercised
+rq4-inflight-t{1,2}: counting backend at 4s latency (phase-stamped ledger: recv/resp/
+resp_err), p=4, kill at ~40 responses with calls genuinely in flight. Script
+rq4_inflight_trial.sh; analysis analysis/inflight_join.py.
+Per trial 400 unique prompts, 404 recvs. Combined: 8 re-issued calls = 6 in-flight at
+kill (3 detected as broken pipes, 3 as resp-into-dead-socket) + 2 completed after the
+last checkpoint (the documented orphaned-payload window). All other 792 prompts invoked
+EXACTLY once. **8/8 re-issues called the SAME model as the first attempt** (coin-flip
+strategy; P(chance)=2^-8≈0.4%) — a mid-call crash re-issues the chat but REPLAYS the
+persisted decision, because the decision's durable write completes before the call
+starts. Double-billed tokens upper bound: 144 across 800 requests (0.9 tokens/req).
+Note: broken-pipe detection undercounts in-flight (TCP may accept writes to a dead
+peer); classification uses resp-after-kill-ts as well.
+
+## Store-write cost isolation (2026-08-17) — reviewer ask
+rq_storewrite.sh: routed-nondet vs stub:200 backends, p=1, 400 items, 3 repeats per arm.
+  store OFF: p50 207.0/207.5/211.6ms (pooled 208.8)
+  store ON (kafka, 5s ckpt): p50 231.6/232.2/232.3ms (pooled 232.0), p99 266-388
+  DELTA: +23.2ms/routed request [bootstrap 95% CI 22.5, 24.3] = ~11.6ms per durable
+  write (2 writes/request: route + chat), Kafka acks on localhost.
+Reading: durability costs ~23ms per routed request — ~11% of a 200ms stub call,
+negligible against real LLM latencies (0.5-30s), and consistent with RQ2's e2e CIs
+(±140ms API variance) never resolving it.
+
+## Configured-LiteLLM proxy arm (2026-08-17) — reviewer ask (Table IV fairness)
+Setup: LiteLLM 1.95.0, litellm-policy-configured.yaml + litellm_hook_configured.py
+(same regex policy + post-call hook rewriting response.model to the true deployment),
+backends = local counting server (attribution is transport mechanics; no API cost).
+Findings (mechanical, epoch-free):
+  1. The post-call hook FIRES (content mutation survives) but LiteLLM pins the
+     OpenAI-standard body `model` field to the client-requested alias afterwards —
+     response.model rewrite does NOT survive, so no configuration OR custom hook can
+     surface deployment identity in the body field this version.
+  2. The deployment IS surfaced in gateway-specific headers (x-litellm-model-name:
+     openai/count-big, x-litellm-model-api-base, spend headers) — the admin-plane
+     concession the paper already makes.
+  3. Engine-side: the original 500-request run recorded model_name="auto" for all 500
+     responses (re-verified from its eventlog). A 100-request rerun through the
+     configured proxy with pinned-rq4.jar recorded no model_name at all (that jar
+     variant does not propagate the field — harness quirk, noted).
+Conclusion for Table IV: the accounting gap is ARCHITECTURAL, not configurational —
+any client whose accounting reads the standard body field (ours, and any OpenAI-SDK
+consumer) attributes to the alias under best-practice config too; per-backend
+attribution in the pipeline requires a gateway-specific header integration and join.
+This SHARPENS the paper's claim rather than softening it.
+
+## Weighted-routing determinism 2x2 (2026-08-19) — hash-split no-store trials
+New harness strategies: WeightedStrategy (general per-candidate weights; canary/A-B class)
++ HashSplitStrategy (sticky split keyed on request CONTENT — deliberately not the engine
+request id, which regenerates on replay per RQ4 bug one). New arms routed-weighted /
+routed-hashsplit; jar rebuilt (NOTE: rebased framework's Ollama client 404s vs local
+Ollama — trials use the counting backend instead).
+rq4-hashsplit-t1b/t2: kill/restore WITHOUT action-state store, 50% hash split:
+2/2 and 40/40 re-processed decisions identical, 0% divergence.
+COMPLETED 2x2 (divergence across restart):
+                      durable store     no store
+  weighted random     0% (111/111)      47% (56/118)
+  hash split          0% (trivially)    0% (42/42 measured)
+Reading: deterministic sticky splits need no store; weighted-random (canary/A-B) is
+exactly the routing class whose assignments a restart reshuffles without the durable
+decision — restart contaminates the experiment. Also: rate-matched random control
+(86.9) sits ON the convex mixture line (predicted 86.8) — weighted routing IS the
+budget dial; targeting lifts you above the line (rules 88.5).

@@ -1,0 +1,16 @@
+model_list:
+  - model_name: small
+    litellm_params:
+      model: openai/count-small
+      api_base: http://localhost:4001/v1
+      api_key: sk-eval
+  - model_name: big
+    litellm_params:
+      model: openai/count-big
+      api_base: http://localhost:4001/v1
+      api_key: sk-eval
+litellm_settings:
+  drop_params: true
+  callbacks: litellm_hook_configured.proxy_handler_instance
+general_settings:
+  master_key: sk-eval

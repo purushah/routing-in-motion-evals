@@ -28,6 +28,12 @@ routed = [
 ]
 
 fig, ax = plt.subplots(figsize=(3.6, 2.75), dpi=200)
+# weighted-random mixture line: any weighted split of the anchors lives on this
+# segment in expectation (the budget dial); targeting lifts a policy above it.
+ax.plot([0.090, 1.078], [84.5, 88.2], "--", lw=0.9, color=MUTED, zorder=1)
+ax.annotate("weighted-random mixture\n(rate-matched control: 86.9 on the line)",
+            (0.52, 86.05), fontsize=5.0, color=MUTED, ha="center")
+ax.scatter([0.727], [86.9], marker="x", s=26, color=MUTED, zorder=2)
 ax.scatter(
     [c for c, *_ in fixed], [a for _, a, *_ in fixed],
     marker="s", s=34, color=ORANGE, zorder=3, label="fixed models",
