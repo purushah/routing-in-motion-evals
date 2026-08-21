@@ -353,9 +353,17 @@ m6i.8xlarge (32 vCPU, CPU-only Ollama 0.32.14), n=1000/arm, identical backend bo
 | LLM judge | 776 / 982 / 1159 | +737ms [+583,+866] |
 | judge windowed N=20 | amortized 641ms/req; 110 judge tok/req; wait p50 12.8s p95 14.2s | 50 windows, 0 parse failures |
 Direct e2e median 1665ms. vs Mac: rules/BERT same class (BERT faster: 38 vs 71ms); judge slower
-(776 vs 491 — server CPU vs Apple silicon); batched TOKEN saving identical (110 vs 111/req, /5),
+(776 vs 491 — server CPU vs Apple silicon); batched TOKEN saving identical (110 vs 111/req),
 but amortized LATENCY saving shrinks (776->641, 17%, vs 491->247, 50%) because the 20-request
 judge call itself costs ~12.8s on CPU; window wait is judge-bound (fill ~0.8s at this rate),
 NOT fill-bound as on Mac. Batched lost no tail (1000/1000; endInput flush held on rebased fw).
 BERT note: routellm installed clean on py3.9 after pip upgrade; sidecar needed dummy
 OPENAI_API_KEY (module-import quirk) — decision path fully local.
+
+## CORRECTION (2026-08-20, raw-data audit): solo-judge token figure
+The "~500-700 judge tokens/request solo" figure (quoted at the Table-2 batch row, the batch
+sweep, and echoed in the paper/deck) is NOT supported by any run on disk. Measured solo judge
+tokens/request (prompt+completion, medians): om-rq2-judge 212 (max 531), Mac rq2-judge-v4 212,
+API rq1w-judge 224 (max 546). The correct batched saving is ~2x (212-224 -> 105-110), not ~5x.
+Earlier "500-700" appears to have been an early-probe estimate that propagated; judge-probe runs
+recorded no token columns. Paper, fig5 annotation, and deck corrected to ~2x on 2026-08-20.
