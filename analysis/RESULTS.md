@@ -322,3 +322,40 @@ exactly the routing class whose assignments a restart reshuffles without the dur
 decision — restart contaminates the experiment. Also: rate-matched random control
 (86.9) sits ON the convex mixture line (predicted 86.8) — weighted routing IS the
 budget dial; targeting lifts you above the line (rules 88.5).
+
+## Server-hardware validation on a Kubernetes pod, AWS EKS (2026-08-19)
+Setup: pod (16 CPU) from user's yflink image on m6i.8xlarge (32-vCPU Xeon) node,
+pinned-rq4.jar via kubectl cp, in-pod KRaft Kafka 3.9.0 (localhost, same topology as Mac),
+runs in the server-runs release asset. Latency-sensitive results vs the Mac laptop:
+  rules decision_ms:  p50 0.019ms (Mac 0.016) — same class; p99 0.33 vs 0.07 (warmup tail)
+  engine overhead over stub:200: 0.8ms (Mac 8.8ms) — server BETTER
+  store-write delta: +3.4ms/req [3.4,3.5] = ~1.7ms/write (Mac +23.2 = ~11.6/write) — 7x BETTER
+  RQ3 speedups p1/2/4/8: 1/1.95/3.59/6.32 (Mac 1/1.98/3.90/7.42) — same near-linear shape
+  (p8 mildly lower under the 16-CPU pod limit)
+Verdict: every structural claim reproduces; the laptop numbers are CONSERVATIVE (durability
+cheaper on servers). No paper number needs replacement; a one-line validation note suffices.
+
+## Server RQ4 suite — full reproduction on server hardware (2026-08-20)
+All 10 trials on the server pod (m6i.8xlarge, in-pod Kafka, counting backend, NEW rebased
+jar, 15s checkpoints): fingerprint 69/69 (3 trials, model + byte-identical decision_ms),
+rescaled p2->4 45/45, weighted no-store 41% divergence (9/22; coin-flip class), hash-split
+no-store 44/44 model-identical, in-flight 8/8 reissues kept the persisted decision (4+4,
+all broken-pipe-detected). Every Mac recovery claim reproduces on the current framework on
+server hardware. Runs: release asset, runs/om-*.
+
+## Server RQ2 rerun (2026-08-20, rebuilt pod, rebased framework) — COMPLETE
+m6i.8xlarge (32 vCPU, CPU-only Ollama 0.32.14), n=1000/arm, identical backend both candidates
+(qwen2.5:0.5b), judge qwen3:1.7b, BERT sidecar threshold 0.8251. All arms rc=0, 1000/1000 parsed.
+| arm | decision_ms p50/p95/p99 | e2e delta vs direct [95% CI] |
+|---|---|---|
+| rules | 0.027 / 0.05 / 0.09 | -56ms [-158,+65] (indistinguishable) |
+| RouteLLM BERT | 37.8 / 62 / 81 | -73ms [-199,+56] (indistinguishable) |
+| LLM judge | 776 / 982 / 1159 | +737ms [+583,+866] |
+| judge windowed N=20 | amortized 641ms/req; 110 judge tok/req; wait p50 12.8s p95 14.2s | 50 windows, 0 parse failures |
+Direct e2e median 1665ms. vs Mac: rules/BERT same class (BERT faster: 38 vs 71ms); judge slower
+(776 vs 491 — server CPU vs Apple silicon); batched TOKEN saving identical (110 vs 111/req, /5),
+but amortized LATENCY saving shrinks (776->641, 17%, vs 491->247, 50%) because the 20-request
+judge call itself costs ~12.8s on CPU; window wait is judge-bound (fill ~0.8s at this rate),
+NOT fill-bound as on Mac. Batched lost no tail (1000/1000; endInput flush held on rebased fw).
+BERT note: routellm installed clean on py3.9 after pip upgrade; sidecar needed dummy
+OPENAI_API_KEY (module-import quirk) — decision path fully local.

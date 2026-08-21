@@ -52,6 +52,15 @@ id-keyed stickiness is not restart-stable without the durable store). The determ
    then `analysis/parse_eventlog.py` + `analysis/grade.py` (the phase scripts show the
    exact flags for every reported run).
 
+## Server rerun (v1.2)
+
+The latency-sensitive results (RQ2 decision-overhead arms; RQ4 recovery suite reproduction)
+were re-measured on a 32-vCPU x86 Kubernetes pod (AWS m6i.8xlarge, CPU-only Ollama 0.32.14) ---
+these are the numbers the paper reports for Table III. `rq2_server.sh` is the exact in-pod
+launcher; the raw EventLogs are the `runs-server-eventlogs.tar.gz` release asset (run ids
+`om-*`, `ek-*`). The ledger's "Server RQ2 rerun" entry documents the Mac-vs-server comparison,
+including the judge-bound window wait on CPU.
+
 **Epoch caveat:** live-API arms call provider *aliases*. The paper pins access dates
 (Aug 7–10, 2026 for the headline arms) and `analysis/RESULTS.md` documents a measured
 +1pp drift of one alias within a week — reproductions should expect point estimates to
